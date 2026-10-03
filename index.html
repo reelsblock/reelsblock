@@ -1,0 +1,62 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ReelsBlock</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#fff;--fg:#111827;--mut:#6b7280;--card:#f3f4f6;--acc:#4f46e5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111827;--fg:#f3f4f6;--mut:#9ca3af;--card:#1f2937;--acc:#818cf8}}
+:root[data-theme="dark"]{--bg:#111827;--fg:#f3f4f6;--mut:#9ca3af;--card:#1f2937;--acc:#818cf8}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 18px}
+h1{margin:0 0 6px}p,li{color:var(--mut)}
+button{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:16px;cursor:pointer}
+.card{background:var(--card);border-radius:12px;padding:14px 18px;margin:16px 0}
+#msg{margin-top:10px;color:var(--mut);font-size:14px}
+</style></head><body><main>
+<h1>ReelsBlock</h1>
+<p>Use Instagram for messages and friends without Reels, Explore or the home feed. Stories stay. Includes a Study Mode (messages only). Free.</p>
+<button id="dl">Download extension (.zip)</button><div id="msg"></div>
+<div class="card"><b>Install</b>
+<ol><li>Unzip the downloaded file.</li>
+<li><b>Chrome/Edge (computer):</b> open <code>chrome://extensions</code>, turn on Developer mode, click Load unpacked, pick the folder.</li>
+<li><b>Firefox (computer or Android):</b> open <code>about:debugging</code> &rarr; This Firefox &rarr; Load Temporary Add-on &rarr; pick <code>manifest.json</code>.</li>
+<li><b>Safari (Mac):</b> Safari extensions need a one-time conversion in Xcode (free from the App Store): run <code>xcrun safari-web-extension-converter /path/to/reelsblock</code> in Terminal, build the app, then enable it in Safari &rarr; Settings &rarr; Extensions. Firefox or Chrome is much easier.</li>
+<li>Log in at instagram.com and allow notifications. On Android, add the site to your home screen, then you can delete the Instagram app.</li></ol></div>
+<p style="font-size:14px">Chrome on Android doesn't support extensions; use Firefox. Not affiliated with Instagram or Meta.</p>
+<script>const FILES={"manifest.json": "{\n  \"manifest_version\": 3,\n  \"name\": \"ReelsBlock\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Use Instagram for messages and friends without Reels or endless scrolling. Includes Study Mode.\",\n  \"permissions\": [\"storage\"],\n  \"host_permissions\": [\"https://www.instagram.com/*\"],\n  \"content_scripts\": [{\n    \"matches\": [\"https://www.instagram.com/*\"],\n    \"js\": [\"content.js\"],\n    \"css\": [\"content.css\"],\n    \"run_at\": \"document_start\"\n  }],\n  \"action\": { \"default_popup\": \"popup.html\", \"default_title\": \"ReelsBlock\" },\n  \"browser_specific_settings\": { \"gecko\": { \"id\": \"reelsblock@example.com\" } }\n}\n", "content.js": "(() => {\n  const api = globalThis.browser ?? globalThis.chrome;\n  let s = { enabled: true, study: false };\n\n  const BLOCKED = /^\\/(reels?|explore)(\\/|$)/;                 // always blocked when enabled\n  const STUDY_ALLOWED = /^\\/(direct|accounts|challenge|session)(\\/|$)/; // Study Mode: messages only\n\n  function go(to) { if (location.pathname !== to) location.replace(to); }\n\n  function check() {\n    const root = document.documentElement;\n    if (!root) return;\n    root.classList.toggle(\"ii-on\", s.enabled);\n    root.classList.toggle(\"ii-study\", s.enabled && s.study);\n    root.classList.toggle(\"ii-home\", s.enabled && location.pathname === \"/\");\n    banner();\n    if (!s.enabled) return;\n    const p = location.pathname;\n    if (s.study && !STUDY_ALLOWED.test(p)) return go(\"/direct/inbox/\");\n    if (BLOCKED.test(p)) go(s.study ? \"/direct/inbox/\" : \"/\");\n  }\n\n  function banner() {\n    let b = document.getElementById(\"ii-banner\");\n    const want = s.enabled && s.study;\n    if (want && !b && document.body) {\n      b = document.createElement(\"div\");\n      b.id = \"ii-banner\";\n      b.textContent = \"Study Mode: messages only\";\n      document.body.appendChild(b);\n    } else if (!want && b) b.remove();\n  }\n\n  function load() {\n    const done = (v) => apply(v);\n    const r = api.storage.sync.get({ enabled: true, study: false }, done);\n    if (r && r.then) r.then(done); // Firefox promise style\n  }\n  function apply(v) { s = v; check(); }\n\n  api.storage.onChanged.addListener(load);\n  load();\n\n  // Instagram is a single-page app, so URL changes don't reload the page.\n  setInterval(check, 250);\n  window.addEventListener(\"popstate\", check);\n  new MutationObserver(check).observe(document, { childList: true, subtree: true });\n})();\n", "content.css": "/* Hide Reels / Explore links (nav bars, profile tabs, etc.) */\nhtml.ii-on a[href^=\"/reels\"],\nhtml.ii-on a[href^=\"/explore\"],\nhtml.ii-on a[href$=\"/reels/\"],\nhtml.ii-on a[href*=\"/reels/\"] { display: none !important; }\n\n/* Hide feed posts that are actually Reels */\nhtml.ii-on article:has(a[href*=\"/reel/\"]) { display: none !important; }\n\n/* Home page: hide all feed posts, keep the stories tray */\nhtml.ii-home article,\nhtml.ii-home main article { display: none !important; }\n\n/* Study Mode: hide stories tray and suggestions on any page that slips through */\nhtml.ii-study [aria-label*=\"tories\"] { display: none !important; }\n\n#ii-banner {\n  position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);\n  background: #1f2937; color: #fff; font: 13px/1.2 system-ui, sans-serif;\n  padding: 8px 14px; border-radius: 999px; z-index: 2147483647;\n  opacity: .92; pointer-events: none;\n}\n", "popup.html": "<!doctype html>\n<meta charset=\"utf-8\">\n<style>\n  body { font: 14px system-ui, sans-serif; width: 260px; padding: 12px; }\n  label { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }\n  small { color: #6b7280; display: block; margin-top: 4px; }\n<\/style>\n<h3 style=\"margin:0 0 6px\">ReelsBlock<\/h3>\n<label>Block Reels &amp; Explore <input type=\"checkbox\" id=\"enabled\"><\/label>\n<label>Study Mode <input type=\"checkbox\" id=\"study\"><\/label>\n<small>Study Mode limits Instagram to messages only. Turn it off when you're done.<\/small>\n<script src=\"popup.js\"><\/script>\n", "popup.js": "const api = globalThis.browser ?? globalThis.chrome;\nconst ids = [\"enabled\", \"study\"];\napi.storage.sync.get({ enabled: true, study: false }, (v) => {\n  ids.forEach((id) => (document.getElementById(id).checked = v[id]));\n});\nids.forEach((id) =>\n  document.getElementById(id).addEventListener(\"change\", (e) =>\n    api.storage.sync.set({ [id]: e.target.checked })\n  )\n);\n", "README.md": "# ReelsBlock\n\nBlocks Reels, Explore and home-feed posts (stories stay) on instagram.com, and adds a Study Mode that limits Instagram to DMs only.\n\n## Install\n**Desktop Chrome/Edge:** chrome://extensions -> Developer mode -> Load unpacked -> select this folder.\n**Firefox (desktop or Android):** about:debugging -> This Firefox -> Load Temporary Add-on -> pick manifest.json.\n(For permanent install on Firefox, sign it at addons.mozilla.org; it can be self-distributed for free.)\n\n## Getting notifications without the Instagram app\n1. Open https://www.instagram.com in the browser, log in.\n2. Allow notifications when prompted (or in Instagram web Settings -> Notifications).\n3. On Android, use \"Add to Home screen\" / \"Install\" so it opens like an app.\n4. You can then uninstall the official Instagram app.\n\n## Limits\n- Reels sent in DMs still show up as messages; opening one is blocked and redirects you.\n- Instagram changes its site often; selectors in content.css may need updates.\n- Chrome on Android doesn't support extensions; use Firefox Android (or Kiwi).\n"};
+const msg=document.getElementById('msg');
+const enc=new TextEncoder();
+const T=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc=b=>{let c=~0;for(let i=0;i<b.length;i++)c=T[(c^b[i])&255]^(c>>>8);return ~c>>>0};
+function makeZip(files){
+  const parts=[],cen=[];let off=0;
+  for(const [name,text] of Object.entries(files)){
+    const n=enc.encode(name),d=enc.encode(text),c=crc(d);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);
+    lh.setUint32(14,c,true);lh.setUint32(18,d.length,true);lh.setUint32(22,d.length,true);lh.setUint16(26,n.length,true);
+    parts.push(lh.buffer,n,d);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);
+    ch.setUint32(16,c,true);ch.setUint32(20,d.length,true);ch.setUint32(24,d.length,true);ch.setUint16(28,n.length,true);ch.setUint32(42,off,true);
+    cen.push(ch.buffer,n);
+    off+=30+n.length+d.length;
+  }
+  const csize=cen.reduce((a,b)=>a+b.byteLength,0);
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,Object.keys(files).length,true);end.setUint16(10,Object.keys(files).length,true);
+  end.setUint32(12,csize,true);end.setUint32(16,off,true);
+  return new Blob([...parts,...cen,end.buffer],{type:'application/zip'});
+}
+document.getElementById('dl').addEventListener('click',async()=>{
+  const zipFiles={};for(const [n,c] of Object.entries(FILES))zipFiles['reelsblock/'+n]=c;
+  const blob=makeZip(zipFiles);
+  try{
+    const d=(typeof claude!=='undefined'&&claude.use)?await claude.use('downloads'):null;
+    if(d){await d.save({filename:'reelsblock.zip',data:await blob.arrayBuffer()});msg.textContent='Saved. Follow the steps below.';return;}
+  }catch(e){if(e&&e.code==='declined'){msg.textContent='Download cancelled.';return;}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='reelsblock.zip';
+  document.body.appendChild(a);a.click();a.remove();
+  msg.textContent='Downloaded reelsblock.zip. Follow the steps below.';
+});
+</script></main></body></html>
